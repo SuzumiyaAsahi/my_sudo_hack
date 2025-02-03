@@ -1,0 +1,17 @@
+[package]
+name = "my_sudo_hack-ebpf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+my_sudo_hack-common = { path = "../my_sudo_hack-common" }
+
+aya-ebpf = { workspace = true }
+aya-log-ebpf = { workspace = true }
+
+[build-dependencies]
+which = { workspace = true }
+
+[[bin]]
+name = "my_sudo_hack"
+path = "src/main.rs"
