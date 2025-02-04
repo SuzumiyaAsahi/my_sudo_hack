@@ -2,13 +2,10 @@ use aya::programs::TracePoint;
 #[rustfmt::skip]
 use log::{debug, warn};
 use clap::Parser;
+use my_sudo_hack_common::max_payload_len;
 use tokio::signal;
 
-#[derive(Debug, Parser)]
-struct TargetPid {
-    #[clap(short, long, default_value = "0")]
-    pid: u64,
-}
+const max_username_len: u64 = 20;
 
 /// A simple CLI tool to restrict execution based on user and parent process ID
 #[derive(Debug, Parser)]
@@ -29,20 +26,19 @@ struct Cli {
         default_value_t = false
     )]
     restrict: bool,
-
-    /// Optional Parent PID, will only affect its children
-    #[arg(
-        short = 't',
-        long = "target-ppid",
-        value_name = "PPID",
-        default_value_t = 0
-    )]
-    target_ppid: u64,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opt = TargetPid::parse();
+    let opt = Cli::parse();
+    let user_name = opt.username;
+    if user_name.is_none() {
+        println!("Please input target user name");
+        return Ok(());
+    }
+    let user_name = user_name.unwrap();
+    let payload_len = user_name.len() as u64;
+
     env_logger::init();
 
     // Bump the memlock rlimit. This is needed for older kernels that don't use the
@@ -60,8 +56,12 @@ async fn main() -> anyhow::Result<()> {
     // runtime. This approach is recommended for most real-world use cases. If you would
     // like to specify the eBPF program at runtime rather than at compile-time, you can
     // reach for `Bpf::load_file` instead.
+    let mut payload: [u8; max_payload_len as usize] = [0; max_payload_len as usize];
+    payload[..user_name.len()].copy_from_slice(user_name.as_bytes());
+
     let mut ebpf = aya::EbpfLoader::new()
-        .set_global("target_pid", &opt.pid, true)
+        .set_global("payload_len", &payload_len, true)
+        .set_global("payload", &payload, true)
         .load(aya::include_bytes_aligned!(concat!(
             env!("OUT_DIR"),
             "/my_sudo_hack"

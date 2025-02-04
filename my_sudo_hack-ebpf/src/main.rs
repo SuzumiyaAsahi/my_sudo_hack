@@ -7,7 +7,7 @@ use aya_ebpf::{
     programs::TracePointContext,
 };
 use aya_log_ebpf::info;
-use my_sudo_hack_common::uid;
+use my_sudo_hack_common::{max_payload_len, payload, payload_len, uid};
 
 #[map]
 // Map to hold the File Descriptors from 'openat' calls
@@ -50,22 +50,30 @@ pub fn handle_read_exit(ctx: TracePointContext) -> u32 {
 }
 
 fn hanle_openat_enter_function(ctx: TracePointContext) -> Result<u32, u32> {
-    info!(&ctx, "tracepoint syscalls called");
+    info!(&ctx, "user name is {}", unsafe {
+        core::str::from_utf8_unchecked(&payload)
+    });
     Ok(0)
 }
 
 fn handle_openat_exit_function(ctx: TracePointContext) -> Result<u32, u32> {
-    info!(&ctx, "tracepoint syscalls called");
+    info!(&ctx, "user name is {}", unsafe {
+        core::str::from_utf8_unchecked(&payload)
+    });
     Ok(0)
 }
 
 fn handle_read_enter_function(ctx: TracePointContext) -> Result<u32, u32> {
-    info!(&ctx, "tracepoint syscalls called");
+    info!(&ctx, "user name is {}", unsafe {
+        core::str::from_utf8_unchecked(&payload)
+    });
     Ok(0)
 }
 
 fn handle_read_exit_function(ctx: TracePointContext) -> Result<u32, u32> {
-    info!(&ctx, "tracepoint syscalls called");
+    info!(&ctx, "user name is {}", unsafe {
+        core::str::from_utf8_unchecked(&payload)
+    });
     Ok(0)
 }
 
