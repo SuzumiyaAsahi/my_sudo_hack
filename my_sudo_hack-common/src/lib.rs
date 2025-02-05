@@ -1,6 +1,6 @@
 #![no_std]
 #[no_mangle]
-pub static mut uid: u64 = 0;
+pub static mut uid: u32 = 0;
 
 #[no_mangle]
 pub static mut payload_len: u64 = 0;

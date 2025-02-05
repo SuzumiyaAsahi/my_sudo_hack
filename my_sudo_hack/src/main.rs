@@ -3,6 +3,7 @@ use aya::programs::TracePoint;
 use log::{debug, warn};
 use clap::Parser;
 use my_sudo_hack_common::max_payload_len;
+use nix::unistd::User;
 use tokio::signal;
 
 const max_username_len: u64 = 20;
@@ -28,6 +29,11 @@ struct Cli {
     restrict: bool,
 }
 
+fn lookup_user(name: &str) -> anyhow::Result<u32> {
+    let user = User::from_name(name)?.expect("I don't know why your user name is None");
+    Ok(user.uid.as_raw())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
@@ -38,6 +44,11 @@ async fn main() -> anyhow::Result<()> {
     }
     let user_name = user_name.unwrap();
     let payload_len = user_name.len() as u64;
+
+    if payload_len > max_username_len {
+        println!("the user name should be less than {}", max_payload_len);
+        return Ok(());
+    }
 
     env_logger::init();
 
@@ -59,13 +70,22 @@ async fn main() -> anyhow::Result<()> {
     let mut payload: [u8; max_payload_len as usize] = [0; max_payload_len as usize];
     payload[..user_name.len()].copy_from_slice(user_name.as_bytes());
 
-    let mut ebpf = aya::EbpfLoader::new()
+    let mut ebpf_loader = aya::EbpfLoader::new();
+
+    let uid = lookup_user(user_name.as_str())?;
+
+    if opt.restrict {
+        ebpf_loader.set_global("uid", &uid, true);
+    }
+
+    let mut ebpf = ebpf_loader
         .set_global("payload_len", &payload_len, true)
         .set_global("payload", &payload, true)
         .load(aya::include_bytes_aligned!(concat!(
             env!("OUT_DIR"),
             "/my_sudo_hack"
         )))?;
+
     if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
         // This can happen if you remove all log statements from your eBPF program.
         warn!("failed to initialize eBPF logger: {}", e);
