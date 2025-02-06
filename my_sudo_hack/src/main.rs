@@ -2,7 +2,7 @@ use aya::programs::TracePoint;
 #[rustfmt::skip]
 use log::{debug, warn};
 use clap::Parser;
-use my_sudo_hack_common::max_payload_len;
+use my_sudo_hack_common::MAX_PAYLOAD_LEN;
 use nix::unistd::User;
 use tokio::signal;
 
@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     let payload_len = user_name.len() as u64;
 
     if payload_len > max_username_len {
-        println!("the user name should be less than {}", max_payload_len);
+        println!("the user name should be less than {}", MAX_PAYLOAD_LEN);
         return Ok(());
     }
 
@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
     // runtime. This approach is recommended for most real-world use cases. If you would
     // like to specify the eBPF program at runtime rather than at compile-time, you can
     // reach for `Bpf::load_file` instead.
-    let mut payload: [u8; max_payload_len as usize] = [0; max_payload_len as usize];
+    let mut payload: [u8; MAX_PAYLOAD_LEN as usize] = [0; MAX_PAYLOAD_LEN as usize];
     payload[..user_name.len()].copy_from_slice(user_name.as_bytes());
 
     let mut ebpf_loader = aya::EbpfLoader::new();

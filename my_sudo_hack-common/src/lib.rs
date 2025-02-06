@@ -5,7 +5,7 @@ pub static mut uid: u32 = 0;
 #[no_mangle]
 pub static mut payload_len: u64 = 0;
 
-pub const max_payload_len: u32 = 100;
+pub const MAX_PAYLOAD_LEN: usize = 100;
 
 #[no_mangle]
-pub static mut payload: [u8; max_payload_len as usize] = [0; max_payload_len as usize];
+pub static mut payload: [u8; MAX_PAYLOAD_LEN as usize] = [0; MAX_PAYLOAD_LEN as usize];
